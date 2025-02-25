@@ -1706,8 +1706,9 @@ impl AppEndpoint {
                                     ),
                                     NEXT_SERVER_UTILITY_MERGE_TAG.clone(),
                                 )
-                                .owned()
                                 .await?
+                                .first()
+                                .cloned()
                                 .unwrap();
 
                             let chunk_group = chunking_context

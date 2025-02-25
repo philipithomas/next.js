@@ -1,14 +1,14 @@
 use anyhow::Result;
 use tracing::Instrument;
 use turbo_rcstr::RcStr;
-use turbo_tasks::{FxIndexMap, ResolvedVc, Value, ValueToString, Vc};
+use turbo_tasks::{FxIndexMap, ResolvedVc, TryJoinIterExt, Value, ValueToString, Vc};
 use turbo_tasks_fs::FileSystemPath;
 use turbopack_core::{
     chunk::{availability_info::AvailabilityInfo, ChunkingContext},
     ident::AssetIdent,
     module::Module,
     module_graph::{chunk_group_info::ChunkGroup, ModuleGraph},
-    output::OutputAssets,
+    output::{OutputAsset, OutputAssets},
 };
 
 use crate::{
@@ -180,13 +180,41 @@ pub async fn get_app_client_references_chunks(
             let mut client_component_ssr_chunks = FxIndexMap::default();
             let mut client_component_client_chunks = FxIndexMap::default();
 
+            let c = chunk_group_info.await?;
+            println!(
+                "{} {:#?}",
+                entry_chunk_group.debug_str(&c).await?,
+                c.chunk_groups
+                    .iter()
+                    .map(|g| g.debug_str(&c))
+                    .try_join()
+                    .await?
+            );
+            println!(
+                "{:#?}",
+                c.merged_chunk_groups
+                    .iter()
+                    .map(async |((id, tag), groups)| Ok((
+                        c.chunk_groups[id.0 as usize].debug_str(&c).await,
+                        tag,
+                        groups
+                            .iter()
+                            .map(|g| c.chunk_groups[g.0 as usize].debug_str(&c))
+                            .try_join()
+                            .await?
+                    )))
+                    .try_join()
+                    .await?
+            );
+
             let server_utils_chunk_group = chunk_group_info
                 .get_merged_group(
                     entry_chunk_group.clone(),
                     NEXT_SERVER_UTILITY_MERGE_TAG.clone(),
                 )
-                .owned()
                 .await?
+                .first()
+                .cloned()
                 // Some entypoints have server utilites that aren't marked as such, fall back to
                 // page chunk group in that case.
                 .unwrap_or(entry_chunk_group);
@@ -205,19 +233,35 @@ pub async fn get_app_client_references_chunks(
                     server_utils_chunk_group.clone()
                 };
 
-                let client_chunk_group = chunk_group_info
+                let client_chunk_groups = chunk_group_info
                     .get_merged_group(
                         parent_chunk_group.clone(),
                         ECMASCRIPT_CLIENT_REFERENCE_MERGE_TAG_CLIENT.clone(),
                     )
                     .await?;
                 // TODO skip CSS references for SSR
-                let ssr_chunk_group = chunk_group_info
+                let ssr_chunk_groups = chunk_group_info
                     .get_merged_group(
                         parent_chunk_group,
                         ECMASCRIPT_CLIENT_REFERENCE_MERGE_TAG_SSR.clone(),
                     )
                     .await?;
+                // println!(
+                //     "client_chunk_group: {:?}",
+                //     client_chunk_groups
+                //         .iter()
+                //         .map(|g| g.debug_str(&c))
+                //         .try_join()
+                //         .await?,
+                // );
+                // println!(
+                //     "ssr_chunk_group: {:?}",
+                //     ssr_chunk_groups
+                //         .iter()
+                //         .map(|g| g.debug_str(&c))
+                //         .try_join()
+                //         .await?,
+                // );
 
                 let (base_ident, server_component_path, is_layout) =
                     if let Some(server_component) = server_component {
@@ -235,41 +279,62 @@ pub async fn get_app_client_references_chunks(
                         )
                     };
 
-                let ssr_chunk_group = if let Some(ssr_chunk_group) = &*ssr_chunk_group {
-                    ssr_chunking_context.map(|ssr_chunking_context| {
+                let ssr_chunk_group = if !ssr_chunk_groups.is_empty() {
+                    let x = ssr_chunking_context.map(|ssr_chunking_context| {
                         let _span = tracing::info_span!(
                             "server side rendering",
                             layout_segment = display(&server_component_path),
                         )
                         .entered();
-
                         ssr_chunking_context.chunk_group(
                             base_ident.with_modifier(ssr_modules_modifier()),
-                            ssr_chunk_group.clone(),
+                            ssr_chunk_groups.first().unwrap().clone(),
                             module_graph,
                             Value::new(current_ssr_availability_info),
                         )
-                    })
+                    });
+                    println!(
+                        "ssr_chunk_group: {:?} {:?}",
+                        ssr_chunk_groups
+                            .iter()
+                            .map(|g| g.debug_str(&c))
+                            .try_join()
+                            .await?,
+                        match x {
+                            Some(x) => Some(
+                                x.await?
+                                    .assets
+                                    .await?
+                                    .iter()
+                                    .map(|m| m.path().to_string())
+                                    .try_join()
+                                    .await?
+                            ),
+                            None => None,
+                        }
+                    );
+                    x
                 } else {
                     None
                 };
 
-                let client_chunk_group = if let Some(client_chunk_group) = &*client_chunk_group {
-                    let _span = tracing::info_span!(
-                        "client side rendering",
-                        layout_segment = display(&server_component_path),
-                    )
-                    .entered();
+                let client_chunk_group =
+                    if let Some(client_chunk_group) = client_chunk_groups.first() {
+                        let _span = tracing::info_span!(
+                            "client side rendering",
+                            layout_segment = display(&server_component_path),
+                        )
+                        .entered();
 
-                    Some(client_chunking_context.chunk_group(
-                        base_ident.with_modifier(client_modules_modifier()),
-                        client_chunk_group.clone(),
-                        module_graph,
-                        Value::new(current_client_availability_info),
-                    ))
-                } else {
-                    None
-                };
+                        Some(client_chunking_context.chunk_group(
+                            base_ident.with_modifier(client_modules_modifier()),
+                            client_chunk_group.clone(),
+                            module_graph,
+                            Value::new(current_client_availability_info),
+                        ))
+                    } else {
+                        None
+                    };
 
                 if let Some(client_chunk_group) = client_chunk_group {
                     let client_chunk_group = client_chunk_group.await?;
