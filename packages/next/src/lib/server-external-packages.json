@@ -21,6 +21,7 @@
   "bcrypt",
   "better-sqlite3",
   "canvas",
+  "chromadb-default-embed",
   "cpu-features",
   "cypress",
   "dd-trace",
