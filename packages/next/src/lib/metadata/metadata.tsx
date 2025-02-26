@@ -178,6 +178,7 @@ export function createMetadataComponents({
           // In PPR rendering we still need to throw the postpone error.
           // If metadata is postponed, React needs to be aware of the location of error.
           if (serveStreamingMetadata && isPostpone(notFoundMetadataErr)) {
+            console.error('DEBUG:throw notFoundMetadataErr')
             throw notFoundMetadataErr
           }
         }
@@ -185,6 +186,7 @@ export function createMetadataComponents({
       // In PPR rendering we still need to throw the postpone error.
       // If metadata is postponed, React needs to be aware of the location of error.
       if (serveStreamingMetadata && isPostpone(metadataErr)) {
+        console.error('DEBUG:throw metadataErr')
         throw metadataErr
       }
       // We don't actually want to error in this component. We will
@@ -199,7 +201,10 @@ export function createMetadataComponents({
     }
   }
   async function Metadata() {
-    const promise = resolveFinalMetadata()
+    const promise = resolveFinalMetadata().catch((err) => {
+      console.error('DEBUG:Metadata promise error', err)
+      throw err
+    })
     if (serveStreamingMetadata) {
       return (
         <Suspense fallback={null}>
