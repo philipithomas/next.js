@@ -143,6 +143,7 @@ export function createHTMLReactServerErrorHandler(
         )
       )
     ) {
+      console.error('DEBUG:RSC onError', err)
       // Record exception in an active span, if available.
       const span = getTracer().getActiveScopeSpan()
       if (span) {
@@ -217,6 +218,7 @@ export function createHTMLErrorHandler(
         )
       )
     ) {
+      console.error('DEBUG:SSR onError', err)
       // Record exception in an active span, if available.
       const span = getTracer().getActiveScopeSpan()
       if (span) {
