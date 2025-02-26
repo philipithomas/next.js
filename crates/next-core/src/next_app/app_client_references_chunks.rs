@@ -232,6 +232,36 @@ pub async fn get_app_client_references_chunks(
             //         .await?
             // );
 
+            let client_to_ref_ty: FxHashMap<ResolvedVc<Box<dyn Module>>, ClientReferenceType> =
+                app_client_references
+                    .client_references
+                    .iter()
+                    .map(|&ty| ty.ty)
+                    .collect::<FxHashSet<_>>()
+                    .into_iter()
+                    .map(async |ty| match ty {
+                        ClientReferenceType::EcmascriptClientReference(proxy) => {
+                            let proxy = proxy.await?;
+                            Ok(Either::Left(
+                                [
+                                    (
+                                        ResolvedVc::upcast::<Box<dyn Module>>(proxy.client_module),
+                                        ty,
+                                    ),
+                                    (ResolvedVc::upcast::<Box<dyn Module>>(proxy.ssr_module), ty),
+                                ]
+                                .into_iter(),
+                            ))
+                        }
+                        ClientReferenceType::CssClientReference(r) => Ok(Either::Right(
+                            std::iter::once((ResolvedVc::upcast::<Box<dyn Module>>(r), ty)),
+                        )),
+                    })
+                    .try_flat_join()
+                    .await?
+                    .into_iter()
+                    .collect();
+
             let server_utils_chunk_group = chunk_group_info
                 .get_merged_group(
                     entry_chunk_group.clone(),
@@ -252,37 +282,6 @@ pub async fn get_app_client_references_chunks(
                     // corresponding ChunkGroup in the graph in this case.
                     continue;
                 }
-
-                let client_to_ref_ty: FxHashMap<ResolvedVc<Box<dyn Module>>, ClientReferenceType> =
-                    client_reference_types
-                        .iter()
-                        .map(async |&ty| match ty {
-                            ClientReferenceType::EcmascriptClientReference(proxy) => {
-                                let proxy = proxy.await?;
-                                Ok(Either::Left(
-                                    [
-                                        (
-                                            ResolvedVc::upcast::<Box<dyn Module>>(
-                                                proxy.client_module,
-                                            ),
-                                            ty,
-                                        ),
-                                        (
-                                            ResolvedVc::upcast::<Box<dyn Module>>(proxy.ssr_module),
-                                            ty,
-                                        ),
-                                    ]
-                                    .into_iter(),
-                                ))
-                            }
-                            ClientReferenceType::CssClientReference(r) => Ok(Either::Right(
-                                std::iter::once((ResolvedVc::upcast::<Box<dyn Module>>(r), ty)),
-                            )),
-                        })
-                        .try_flat_join()
-                        .await?
-                        .into_iter()
-                        .collect();
 
                 let parent_chunk_group = if let Some(server_component) = server_component {
                     ChunkGroup::Shared(ResolvedVc::upcast(server_component.await?.module))
