@@ -39,7 +39,6 @@ import {
 } from './metadata-constants'
 import { AsyncMetadata, AsyncMetadataOutlet } from './async-metadata'
 import { isPostpone } from '../../server/lib/router-utils/is-postpone'
-import { PHASE_PRODUCTION_BUILD } from '../../api/constants'
 
 // Use a promise to share the status of the metadata resolving,
 // returning two components `MetadataTree` and `MetadataOutlet`
@@ -178,19 +177,15 @@ export function createMetadataComponents({
           error = notFoundMetadataErr
           // In PPR rendering we still need to throw the postpone error.
           // If metadata is postponed, React needs to be aware of the location of error.
-          if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
-            if (serveStreamingMetadata && isPostpone(notFoundMetadataErr)) {
-              throw notFoundMetadataErr
-            }
+          if (serveStreamingMetadata && isPostpone(notFoundMetadataErr)) {
+            throw notFoundMetadataErr
           }
         }
       }
       // In PPR rendering we still need to throw the postpone error.
       // If metadata is postponed, React needs to be aware of the location of error.
-      if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
-        if (serveStreamingMetadata && isPostpone(metadataErr)) {
-          throw metadataErr
-        }
+      if (serveStreamingMetadata && isPostpone(metadataErr)) {
+        throw metadataErr
       }
       // We don't actually want to error in this component. We will
       // also error in the MetadataOutlet which causes the error to
