@@ -3,17 +3,15 @@ import { FileRef, nextTestSetup } from 'e2e-utils'
 import path from 'path'
 import { outdent } from 'outdent'
 
-// TODO: re-enable these tests after figuring out what is causing
-// them to be so unreliable in CI
-describe.skip('ReactRefreshLogBox app', () => {
-  const { next } = nextTestSetup({
+describe('ReactRefreshLogBox app', () => {
+  const { isTurbopack, next } = nextTestSetup({
     files: new FileRef(path.join(__dirname, 'fixtures', 'default-template')),
     skipStart: true,
   })
 
-  test('<Link> with multiple children', async () => {
+  test('<Link legacyBehavior> with multiple children', async () => {
     await using sandbox = await createSandbox(next)
-    const { session } = sandbox
+    const { browser, session } = sandbox
 
     await session.patch(
       'index.js',
@@ -22,7 +20,7 @@ describe.skip('ReactRefreshLogBox app', () => {
 
         export default function Index() {
           return (
-            <Link href="/">
+            <Link href="/" legacyBehavior>
               <p>One</p>
               <p>Two</p>
             </Link>
@@ -31,10 +29,41 @@ describe.skip('ReactRefreshLogBox app', () => {
       `
     )
 
-    await session.assertHasRedbox()
-    expect(await session.getRedboxDescription()).toMatchInlineSnapshot(
-      `"Error: Multiple children were passed to <Link> with \`href\` of \`/\` but only one child is supported https://nextjs.org/docs/messages/link-multiple-children"`
-    )
+    if (isTurbopack) {
+      await expect(browser).toDisplayRedbox(`
+       {
+         "count": 1,
+         "description": "Error: Multiple children were passed to <Link> with \`href\` of \`/\` but only one child is supported https://nextjs.org/docs/messages/link-multiple-children 
+       Open your browser's console to view the Component stack trace.",
+         "environmentLabel": null,
+         "label": "Unhandled Runtime Error",
+         "source": "index.js (5:5) @ Index
+       > 5 |     <Link href="/" legacyBehavior>
+           |     ^",
+         "stack": [
+           "Index index.js (5:5)",
+           "<FIXME-file-protocol>",
+         ],
+       }
+      `)
+    } else {
+      await expect(browser).toDisplayRedbox(`
+       {
+         "count": 1,
+         "description": "Error: Multiple children were passed to <Link> with \`href\` of \`/\` but only one child is supported https://nextjs.org/docs/messages/link-multiple-children 
+       Open your browser's console to view the Component stack trace.",
+         "environmentLabel": null,
+         "label": "Unhandled Runtime Error",
+         "source": "index.js (5:5) @ Index
+       > 5 |     <Link href="/" legacyBehavior>
+           |     ^",
+         "stack": [
+           "Index index.js (5:5)",
+           "Page app/page.js (4:10)",
+         ],
+       }
+      `)
+    }
     expect(
       await session.evaluate(
         () =>
@@ -51,7 +80,7 @@ describe.skip('ReactRefreshLogBox app', () => {
 
   test('<Link> component props errors', async () => {
     await using sandbox = await createSandbox(next)
-    const { session } = sandbox
+    const { browser, session } = sandbox
 
     await session.patch(
       'index.js',
@@ -64,10 +93,43 @@ describe.skip('ReactRefreshLogBox app', () => {
       `
     )
 
-    await session.assertHasRedbox()
-    expect(await session.getRedboxDescription()).toMatchInlineSnapshot(
-      `"Error: Failed prop type: The prop \`href\` expects a \`string\` or \`object\` in \`<Link>\`, but got \`undefined\` instead."`
-    )
+    if (isTurbopack) {
+      await expect(browser).toDisplayRedbox(`
+       {
+         "count": 1,
+         "description": "Error: Failed prop type: The prop \`href\` expects a \`string\` or \`object\` in \`<Link>\`, but got \`undefined\` instead.
+       Open your browser's console to view the Component stack trace.",
+         "environmentLabel": null,
+         "label": "Unhandled Runtime Error",
+         "source": "index.js (4:10) @ Hello
+       > 4 |   return <Link />
+           |          ^",
+         "stack": [
+           "Array.forEach <anonymous> (0:0)",
+           "Hello index.js (4:10)",
+           "<FIXME-file-protocol>",
+         ],
+       }
+      `)
+    } else {
+      await expect(browser).toDisplayRedbox(`
+       {
+         "count": 1,
+         "description": "Error: Failed prop type: The prop \`href\` expects a \`string\` or \`object\` in \`<Link>\`, but got \`undefined\` instead.
+       Open your browser's console to view the Component stack trace.",
+         "environmentLabel": null,
+         "label": "Unhandled Runtime Error",
+         "source": "index.js (4:10) @ Hello
+       > 4 |   return <Link />
+           |          ^",
+         "stack": [
+           "Array.forEach <anonymous> (0:0)",
+           "Hello index.js (4:10)",
+           "Page app/page.js (4:10)",
+         ],
+       }
+      `)
+    }
 
     await session.patch(
       'index.js',
@@ -175,8 +237,43 @@ describe.skip('ReactRefreshLogBox app', () => {
         }
       `
     )
-    await session.assertHasRedbox()
-    expect(await session.getRedboxDescription()).toMatchSnapshot()
+    if (isTurbopack) {
+      await expect(browser).toDisplayRedbox(`
+       {
+         "count": 1,
+         "description": "Error: Failed prop type: The prop \`scroll\` expects a \`boolean\` in \`<Link>\`, but got \`string\` instead.
+       Open your browser's console to view the Component stack trace.",
+         "environmentLabel": null,
+         "label": "Unhandled Runtime Error",
+         "source": "index.js (5:5) @ Hello
+       > 5 |     <Link
+           |     ^",
+         "stack": [
+           "Array.forEach <anonymous> (0:0)",
+           "Hello index.js (5:5)",
+           "<FIXME-file-protocol>",
+         ],
+       }
+      `)
+    } else {
+      await expect(browser).toDisplayRedbox(`
+       {
+         "count": 1,
+         "description": "Error: Failed prop type: The prop \`scroll\` expects a \`boolean\` in \`<Link>\`, but got \`string\` instead.
+       Open your browser's console to view the Component stack trace.",
+         "environmentLabel": null,
+         "label": "Unhandled Runtime Error",
+         "source": "index.js (5:5) @ Hello
+       > 5 |     <Link
+           |     ^",
+         "stack": [
+           "Array.forEach <anonymous> (0:0)",
+           "Hello index.js (5:5)",
+           "Page app/page.js (4:10)",
+         ],
+       }
+      `)
+    }
 
     await session.patch(
       'index.js',
@@ -200,13 +297,28 @@ describe.skip('ReactRefreshLogBox app', () => {
         }
       `
     )
-    await session.assertHasRedbox()
-    expect(await session.getRedboxDescription()).toMatchSnapshot()
+    await expect(browser).toDisplayRedbox(`
+     {
+       "count": 1,
+       "description": "Error: Failed prop type: The prop \`href\` expects a \`string\` or \`object\` in \`<Link>\`, but got \`boolean\` instead.
+     Open your browser's console to view the Component stack trace.",
+       "environmentLabel": null,
+       "label": "Unhandled Runtime Error",
+       "source": "index.js (5:5) @ Hello
+     > 5 |     <Link
+         |     ^",
+       "stack": [
+         "Array.forEach <anonymous> (0:0)",
+         "Hello index.js (5:5)",
+         "Page app/page.js (4:10)",
+       ],
+     }
+    `)
   })
 
   test('server-side only compilation errors', async () => {
     await using sandbox = await createSandbox(next)
-    const { session } = sandbox
+    const { browser, session } = sandbox
 
     await session.patch(
       'app/page.js',
@@ -226,6 +338,45 @@ describe.skip('ReactRefreshLogBox app', () => {
       `
     )
 
-    await session.assertHasRedbox()
+    if (isTurbopack) {
+      await expect(browser).toDisplayRedbox(`
+       {
+         "count": 1,
+         "description": "Ecmascript file had an error",
+         "environmentLabel": null,
+         "label": "Build Error",
+         "source": "./app/page.js (3:23)
+       Ecmascript file had an error
+       > 3 | export async function getStaticProps() {
+           |                       ^^^^^^^^^^^^^^",
+         "stack": [],
+       }
+      `)
+    } else {
+      await expect(browser).toDisplayRedbox(`
+       {
+         "count": 1,
+         "description": "Error:   x "getStaticProps" is not supported in app/. Read more: https://nextjs.org/docs/app/building-your-application/data-fetching",
+         "environmentLabel": null,
+         "label": "Build Error",
+         "source": "./app/page.js
+       Error:   x "getStaticProps" is not supported in app/. Read more: https://nextjs.org/docs/app/building-your-application/data-fetching
+         |
+         |
+          ,-[3:1]
+        1 | 'use client'
+        2 | import myLibrary from 'my-non-existent-library'
+        3 | export async function getStaticProps() {
+          :                       ^^^^^^^^^^^^^^
+        4 |   return {
+        5 |     props: {
+        6 |       result: myLibrary()
+          \`----
+       Import trace for requested module:
+       ./app/page.js",
+         "stack": [],
+       }
+      `)
+    }
   })
 })
