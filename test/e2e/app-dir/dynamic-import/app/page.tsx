@@ -6,7 +6,7 @@ async function getImport(
   slug: string,
   exportName: string
 ): Promise<ElementType> {
-  const moduleExports = await import(`./${slug}`)
+  const moduleExports = await import(`./button`)
   return moduleExports[exportName]
 }
 
